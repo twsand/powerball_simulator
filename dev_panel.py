@@ -10,11 +10,8 @@ Run this on your PC to:
 """
 
 import subprocess
-import threading
 import os
-import sys
 import json
-import signal
 from datetime import datetime
 from flask import Flask, render_template_string, jsonify, request
 
@@ -25,15 +22,9 @@ CONFIG = {
     "pi_host": "192.168.0.73",
     "pi_user": "twsand",
     "pi_project_path": "~/powerball_simulator",
-    "local_port": 5000,
     "dev_panel_port": 5050,
     "git_remote": "origin",
-    "git_branch": "main"
-}
-
-# Track running processes
-running_processes = {
-    "simulator": None
+    "git_branch": "master"
 }
 
 # Log storage
@@ -109,10 +100,10 @@ DASHBOARD_HTML = """
         .container { max-width: 900px; margin: 0 auto; }
         h1 { color: #ffd700; margin-bottom: 5px; }
         .subtitle { color: #666; margin-bottom: 30px; }
-        
+
         .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
         @media (max-width: 768px) { .grid { grid-template-columns: 1fr; } }
-        
+
         .card {
             background: #1a1a2e;
             border-radius: 12px;
@@ -127,7 +118,14 @@ DASHBOARD_HTML = """
             align-items: center;
             gap: 8px;
         }
-        
+        .card-deploy {
+            background: linear-gradient(135deg, #1a1a2e 0%, #2a1a3e 100%);
+            border: 2px solid #ffd700;
+        }
+        .card-deploy h2 {
+            font-size: 1.4rem;
+        }
+
         .btn {
             padding: 12px 20px;
             border: none;
@@ -142,13 +140,26 @@ DASHBOARD_HTML = """
         }
         .btn:hover { transform: translateY(-1px); }
         .btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
-        
+
         .btn-primary { background: #ffd700; color: #1a1a2e; }
         .btn-success { background: #28a745; color: white; }
         .btn-danger { background: #dc3545; color: white; }
         .btn-secondary { background: #444; color: white; }
         .btn-info { background: #17a2b8; color: white; }
-        
+
+        .btn-deploy {
+            background: linear-gradient(135deg, #ffd700 0%, #ffaa00 100%);
+            color: #1a1a2e;
+            font-size: 18px;
+            font-weight: bold;
+            padding: 18px 30px;
+            box-shadow: 0 4px 15px rgba(255, 215, 0, 0.3);
+        }
+        .btn-deploy:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(255, 215, 0, 0.4);
+        }
+
         .status-indicator {
             display: inline-block;
             width: 10px;
@@ -159,7 +170,7 @@ DASHBOARD_HTML = """
         .status-running { background: #28a745; }
         .status-stopped { background: #dc3545; }
         .status-unknown { background: #ffc107; }
-        
+
         .log-container {
             background: #0a0a15;
             border-radius: 8px;
@@ -174,7 +185,7 @@ DASHBOARD_HTML = """
         .log-info { color: #17a2b8; }
         .log-error { color: #dc3545; }
         .log-success { color: #28a745; }
-        
+
         .config-display {
             background: #0a0a15;
             border-radius: 8px;
@@ -185,7 +196,7 @@ DASHBOARD_HTML = """
         .config-item { margin: 5px 0; }
         .config-key { color: #ffd700; }
         .config-value { color: #17a2b8; }
-        
+
         .links { margin-top: 15px; }
         .links a {
             color: #ffd700;
@@ -193,9 +204,9 @@ DASHBOARD_HTML = """
             margin-right: 20px;
         }
         .links a:hover { text-decoration: underline; }
-        
+
         .full-width { grid-column: 1 / -1; }
-        
+
         input[type="text"] {
             padding: 10px;
             border: 1px solid #333;
@@ -205,44 +216,52 @@ DASHBOARD_HTML = """
             width: 100%;
             margin-bottom: 10px;
         }
+
+        .deploy-status {
+            margin-top: 10px;
+            padding: 8px 12px;
+            border-radius: 6px;
+            font-size: 13px;
+            display: none;
+        }
+        .deploy-status.active {
+            display: block;
+            background: rgba(255, 215, 0, 0.1);
+            border: 1px solid #ffd700;
+            color: #ffd700;
+        }
     </style>
 </head>
 <body>
     <div class="container">
-        <h1>🎱 Powerball Dev Panel</h1>
-        <p class="subtitle">Local development & Pi deployment control</p>
-        
+        <h1>Powerball Dev Panel</h1>
+        <p class="subtitle">Pi deployment control - Edit on PC, deploy to Pi</p>
+
         <div class="grid">
-            <!-- Local Simulator -->
-            <div class="card">
-                <h2>💻 Local Simulator</h2>
-                <div id="localStatus">
-                    <span class="status-indicator status-unknown"></span>
-                    Checking...
-                </div>
-                <div style="margin-top: 15px;">
-                    <button class="btn btn-success" onclick="startLocal()">▶ Start</button>
-                    <button class="btn btn-danger" onclick="stopLocal()">⏹ Stop</button>
-                </div>
-                <div class="links" id="localLinks" style="display: none;">
-                    <a href="http://localhost:5000" target="_blank">Player Page</a>
-                    <a href="http://localhost:5000/watch" target="_blank">Watch</a>
-                    <a href="http://localhost:5000/admin" target="_blank">Admin</a>
-                </div>
+            <!-- Quick Deploy - Prominent at top -->
+            <div class="card card-deploy full-width">
+                <h2>Quick Deploy to Pi</h2>
+                <p style="color: #aaa; font-size: 14px; margin-bottom: 15px;">
+                    Commits changes, pushes to git, pulls on Pi, and restarts the app - all in one click.
+                </p>
+                <input type="text" id="commitMsg" placeholder="Commit message (optional - defaults to 'Deploy from dev panel')">
+                <button class="btn btn-deploy" onclick="quickDeploy()" style="width: 100%;">
+                    Deploy to Pi
+                </button>
+                <div class="deploy-status" id="deployStatus"></div>
             </div>
-            
+
             <!-- Git Operations -->
             <div class="card">
-                <h2>📦 Git Operations</h2>
-                <input type="text" id="commitMsg" placeholder="Commit message (optional)">
+                <h2>Git Operations</h2>
                 <button class="btn btn-primary" onclick="gitCommitPush()">Commit & Push</button>
                 <button class="btn btn-secondary" onclick="gitStatus()">Status</button>
                 <button class="btn btn-secondary" onclick="gitPull()">Pull</button>
             </div>
-            
-            <!-- Pi Deployment -->
+
+            <!-- Pi Controls -->
             <div class="card">
-                <h2>🍓 Raspberry Pi</h2>
+                <h2>Raspberry Pi</h2>
                 <div id="piStatus">
                     <span class="status-indicator status-unknown"></span>
                     Not checked
@@ -257,37 +276,27 @@ DASHBOARD_HTML = """
                     <a href="http://{{ pi_host }}:5000/admin" target="_blank">Pi Admin</a>
                 </div>
             </div>
-            
-            <!-- Quick Deploy -->
-            <div class="card">
-                <h2>🚀 Quick Deploy</h2>
-                <p style="color: #888; font-size: 13px;">Commit, push, pull on Pi, and restart - all in one click.</p>
-                <button class="btn btn-primary" onclick="quickDeploy()" style="width: 100%;">
-                    Deploy to Pi
-                </button>
-            </div>
-            
+
             <!-- Config -->
             <div class="card">
-                <h2>⚙️ Configuration</h2>
+                <h2>Configuration</h2>
                 <div class="config-display">
                     <div class="config-item"><span class="config-key">Pi Host:</span> <span class="config-value">{{ pi_host }}</span></div>
                     <div class="config-item"><span class="config-key">Pi User:</span> <span class="config-value">{{ pi_user }}</span></div>
                     <div class="config-item"><span class="config-key">Pi Path:</span> <span class="config-value">{{ pi_path }}</span></div>
-                    <div class="config-item"><span class="config-key">Local Port:</span> <span class="config-value">{{ local_port }}</span></div>
                 </div>
             </div>
-            
+
             <!-- SSH Command -->
             <div class="card">
-                <h2>🔧 Custom SSH Command</h2>
+                <h2>Custom SSH Command</h2>
                 <input type="text" id="sshCmd" placeholder="Command to run on Pi">
                 <button class="btn btn-secondary" onclick="runSshCmd()">Run on Pi</button>
             </div>
-            
+
             <!-- Logs -->
             <div class="card full-width">
-                <h2>📋 Logs</h2>
+                <h2>Logs</h2>
                 <div class="log-container" id="logContainer">
                     <div class="log-entry"><span class="log-time">[--:--:--]</span> Ready</div>
                 </div>
@@ -295,10 +304,10 @@ DASHBOARD_HTML = """
             </div>
         </div>
     </div>
-    
+
     <script>
         const PI_HOST = '{{ pi_host }}';
-        
+
         async function api(endpoint, data = {}) {
             try {
                 const resp = await fetch('/api/' + endpoint, {
@@ -311,70 +320,77 @@ DASHBOARD_HTML = """
                 return {success: false, error: e.message};
             }
         }
-        
-        async function startLocal() {
-            const result = await api('start_local');
-            refreshLogs();
-            checkLocalStatus();
-        }
-        
-        async function stopLocal() {
-            const result = await api('stop_local');
-            refreshLogs();
-            checkLocalStatus();
-        }
-        
+
         async function gitStatus() {
             await api('git_status');
             refreshLogs();
         }
-        
+
         async function gitPull() {
             await api('git_pull');
             refreshLogs();
         }
-        
+
         async function gitCommitPush() {
             const msg = document.getElementById('commitMsg').value || 'Update from dev panel';
             await api('git_commit_push', {message: msg});
             document.getElementById('commitMsg').value = '';
             refreshLogs();
         }
-        
+
         async function piPull() {
             await api('pi_pull');
             refreshLogs();
         }
-        
+
         async function piRestart() {
             await api('pi_restart');
             refreshLogs();
         }
-        
+
         async function piStatus() {
-            await api('pi_status');
+            const result = await api('pi_status');
             refreshLogs();
+            const el = document.getElementById('piStatus');
+            if (result.output && result.output.includes('powerball')) {
+                el.innerHTML = '<span class="status-indicator status-running"></span> App running';
+            } else {
+                el.innerHTML = '<span class="status-indicator status-stopped"></span> App not detected';
+            }
         }
-        
+
         async function quickDeploy() {
+            const statusEl = document.getElementById('deployStatus');
+            statusEl.className = 'deploy-status active';
+            statusEl.textContent = 'Deploying...';
+
             const msg = document.getElementById('commitMsg').value || 'Deploy from dev panel';
-            await api('quick_deploy', {message: msg});
+            const result = await api('quick_deploy', {message: msg});
             document.getElementById('commitMsg').value = '';
             refreshLogs();
+
+            if (result.success) {
+                statusEl.textContent = 'Deploy complete!';
+                setTimeout(() => { statusEl.className = 'deploy-status'; }, 3000);
+            } else {
+                statusEl.textContent = 'Deploy failed - check logs';
+                statusEl.style.borderColor = '#dc3545';
+                statusEl.style.color = '#dc3545';
+            }
         }
-        
+
         async function runSshCmd() {
             const cmd = document.getElementById('sshCmd').value;
             if (!cmd) return;
             await api('ssh_command', {command: cmd});
             refreshLogs();
         }
-        
+
         async function refreshLogs() {
             const result = await api('get_logs');
             if (result.logs) {
                 const container = document.getElementById('logContainer');
-                container.innerHTML = result.logs.map(log => 
+                container.innerHTML = result.logs.map(log =>
                     `<div class="log-entry">
                         <span class="log-time">[${log.time}]</span>
                         <span class="log-${log.level}">${escapeHtml(log.message)}</span>
@@ -383,38 +399,23 @@ DASHBOARD_HTML = """
                 container.scrollTop = container.scrollHeight;
             }
         }
-        
+
         function clearLogs() {
             api('clear_logs');
             document.getElementById('logContainer').innerHTML = '';
         }
-        
-        async function checkLocalStatus() {
-            const result = await api('local_status');
-            const el = document.getElementById('localStatus');
-            const links = document.getElementById('localLinks');
-            if (result.running) {
-                el.innerHTML = '<span class="status-indicator status-running"></span> Running on port 5000';
-                links.style.display = 'block';
-            } else {
-                el.innerHTML = '<span class="status-indicator status-stopped"></span> Stopped';
-                links.style.display = 'none';
-            }
-        }
-        
+
         function escapeHtml(text) {
             const div = document.createElement('div');
             div.textContent = text;
             return div.innerHTML;
         }
-        
-        // Initial checks
-        checkLocalStatus();
+
+        // Initial load
         refreshLogs();
-        
-        // Refresh periodically
+
+        // Refresh logs periodically
         setInterval(refreshLogs, 5000);
-        setInterval(checkLocalStatus, 10000);
     </script>
 </body>
 </html>
@@ -426,70 +427,8 @@ def dashboard():
         DASHBOARD_HTML,
         pi_host=CONFIG["pi_host"],
         pi_user=CONFIG["pi_user"],
-        pi_path=CONFIG["pi_project_path"],
-        local_port=CONFIG["local_port"]
+        pi_path=CONFIG["pi_project_path"]
     )
-
-@app.route('/api/start_local', methods=['POST'])
-def start_local():
-    global running_processes
-    
-    if running_processes["simulator"] and running_processes["simulator"].poll() is None:
-        add_log("Simulator already running", "error")
-        return jsonify({"success": False, "error": "Already running"})
-    
-    project_path = get_project_path()
-    add_log(f"Starting simulator in {project_path}")
-    
-    # Use main_web_only.py if it exists, otherwise main.py
-    script = "main_web_only.py" if os.path.exists(os.path.join(project_path, "main_web_only.py")) else "main.py"
-    
-    try:
-        # Start the process
-        running_processes["simulator"] = subprocess.Popen(
-            [sys.executable, script],
-            cwd=project_path,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            creationflags=subprocess.CREATE_NEW_PROCESS_GROUP if sys.platform == "win32" else 0
-        )
-        add_log(f"Started {script} (PID: {running_processes['simulator'].pid})", "success")
-        return jsonify({"success": True})
-    except Exception as e:
-        add_log(f"Failed to start: {e}", "error")
-        return jsonify({"success": False, "error": str(e)})
-
-@app.route('/api/stop_local', methods=['POST'])
-def stop_local():
-    global running_processes
-    
-    if not running_processes["simulator"]:
-        add_log("No simulator process to stop")
-        return jsonify({"success": False, "error": "Not running"})
-    
-    try:
-        if sys.platform == "win32":
-            running_processes["simulator"].terminate()
-        else:
-            os.kill(running_processes["simulator"].pid, signal.SIGTERM)
-        running_processes["simulator"].wait(timeout=5)
-        add_log("Simulator stopped", "success")
-        running_processes["simulator"] = None
-        return jsonify({"success": True})
-    except Exception as e:
-        add_log(f"Error stopping: {e}", "error")
-        # Force kill
-        try:
-            running_processes["simulator"].kill()
-            running_processes["simulator"] = None
-        except:
-            pass
-        return jsonify({"success": False, "error": str(e)})
-
-@app.route('/api/local_status', methods=['POST'])
-def local_status():
-    running = running_processes["simulator"] and running_processes["simulator"].poll() is None
-    return jsonify({"running": running})
 
 @app.route('/api/git_status', methods=['POST'])
 def git_status():
@@ -601,14 +540,15 @@ def clear_logs():
 
 if __name__ == '__main__':
     print("=" * 50)
-    print("🎱 POWERBALL DEV PANEL")
+    print("POWERBALL DEV PANEL")
     print("=" * 50)
-    print(f"\n📍 Open in browser: http://localhost:{CONFIG['dev_panel_port']}")
-    print(f"\n⚙️  Config:")
-    print(f"   Pi Host: {CONFIG['pi_host']}")
-    print(f"   Pi User: {CONFIG['pi_user']}")
-    print(f"   Pi Path: {CONFIG['pi_project_path']}")
+    print(f"\nOpen in browser: http://localhost:{CONFIG['dev_panel_port']}")
+    print(f"\nPi Target:")
+    print(f"  Host: {CONFIG['pi_host']}")
+    print(f"  User: {CONFIG['pi_user']}")
+    print(f"  Path: {CONFIG['pi_project_path']}")
+    print("\nWorkflow: Edit code -> Click 'Deploy to Pi' -> Done!")
     print("\nPress Ctrl+C to exit")
     print("=" * 50)
-    
+
     app.run(host='127.0.0.1', port=CONFIG['dev_panel_port'], debug=False)

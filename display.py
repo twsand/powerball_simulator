@@ -48,7 +48,7 @@ class Display:
         
         # Generate QR code
         self.qr_large = self._generate_qr(server_url, 200)
-        self.qr_small = self._generate_qr(server_url, 80)
+        self.qr_small = self._generate_qr(server_url, 100)  # Larger for easier scanning on 7" screen
         
         # Animation state
         self.ball_animation_frame = 0
@@ -62,6 +62,9 @@ class Display:
         self.qr_overlay_active = False
         self.qr_overlay_duration = FPS * 6  # 6 seconds
         self.qr_overlay_interval = FPS * 60  # Every 60 seconds
+
+        # Million dollar win flash effect
+        self.million_flash_timer = 0
         
     def _generate_qr(self, url: str, size: int) -> pygame.Surface:
         """Generate a QR code as a Pygame surface."""
@@ -77,7 +80,18 @@ class Display:
         
         surface = pygame.image.load(img_bytes)
         return pygame.transform.scale(surface, (size, size))
-    
+
+    def _get_card_dimensions(self, num_players: int) -> tuple:
+        """Get card width, height, and font scale based on player count."""
+        if num_players == 1:
+            return 350, 300, 1.8  # Large card, ~2x fonts
+        elif num_players == 2:
+            return 300, 280, 1.5  # Medium-large cards
+        elif num_players == 3:
+            return 220, 200, 1.2  # Medium cards
+        else:
+            return 175, 165, 1.0  # Default small cards (4+)
+
     def draw_idle_screen(self):
         """Draw the idle screen with large QR code."""
         self.screen.fill(DARK_GRAY)
@@ -128,11 +142,11 @@ class Display:
     
     def draw_winning_numbers(self, whites: list, powerball: int, y_pos: int):
         """Draw the current winning numbers."""
-        start_x = SCREEN_WIDTH // 2 - 150
-        
+        start_x = SCREEN_WIDTH // 2 - 100  # Shifted right to avoid label overlap
+
         # Label
         label = self.font_small.render("WINNING NUMBERS:", True, GOLD)
-        self.screen.blit(label, (start_x - 160, y_pos - 8))
+        self.screen.blit(label, (start_x - 180, y_pos - 8))
         
         # White balls
         for i, num in enumerate(whites):
@@ -146,28 +160,36 @@ class Display:
         # Powerball
         self.draw_ball(start_x + 280, y_pos, powerball, is_powerball=True)
     
-    def draw_player_card(self, player: dict, x: int, y: int, width: int, height: int):
-        """Draw a single player's stats card."""
+    def draw_player_card(self, player: dict, x: int, y: int, width: int, height: int, scale: float = 1.0):
+        """Draw a single player's stats card with optional scaling."""
         # Card background
         pygame.draw.rect(self.screen, (50, 50, 50), (x, y, width, height))
         pygame.draw.rect(self.screen, LIGHT_GRAY, (x, y, width, height), 1)
-        
-        padding = 8
-        line_height = 18
+
+        # Scale-adjusted fonts
+        name_font = pygame.font.Font(None, int(24 * scale))
+        nums_font = pygame.font.Font(None, int(18 * scale))
+        stats_font = pygame.font.Font(None, int(18 * scale))
+
+        padding = int(8 * scale)
+        line_height = int(18 * scale)
+        indicator_radius = int(5 * scale)
+        indicator_spacing = int(16 * scale)
         curr_y = y + padding
-        
-        # Player name
-        name_text = self.font_small.render(player["name"][:12], True, GOLD)
+
+        # Player name (truncate based on card size)
+        max_name_len = 12 if scale < 1.3 else 16
+        name_text = name_font.render(player["name"][:max_name_len], True, GOLD)
         self.screen.blit(name_text, (x + padding, curr_y))
-        curr_y += line_height + 4
-        
-        # Player's numbers (small)
+        curr_y += line_height + int(4 * scale)
+
+        # Player's numbers
         nums_str = " ".join(str(n).zfill(2) for n in player["numbers"])
         nums_str += f" | {str(player['powerball']).zfill(2)}"
-        nums_text = self.font_tiny.render(nums_str, True, LIGHT_GRAY)
+        nums_text = nums_font.render(nums_str, True, LIGHT_GRAY)
         self.screen.blit(nums_text, (x + padding, curr_y))
         curr_y += line_height
-        
+
         # Match indicators (current match = green, best match = cyan, miss = red)
         white_matches, pb_match = player["last_matches"]
         best_white = player.get("best_white_matches", 0)
@@ -178,47 +200,51 @@ class Display:
                 color = CYAN   # Best ever (but not current)
             else:
                 color = RED    # Never matched
-            pygame.draw.circle(self.screen, color, (x + padding + 8 + i * 16, curr_y + 6), 5)
+            pygame.draw.circle(self.screen, color,
+                             (x + padding + int(8 * scale) + i * indicator_spacing, curr_y + int(6 * scale)),
+                             indicator_radius)
         # PB match indicator
         pb_color = GREEN if pb_match else RED
-        pygame.draw.circle(self.screen, pb_color, (x + padding + 8 + 5 * 16 + 10, curr_y + 6), 5)
+        pygame.draw.circle(self.screen, pb_color,
+                          (x + padding + int(8 * scale) + 5 * indicator_spacing + int(10 * scale), curr_y + int(6 * scale)),
+                          indicator_radius)
         curr_y += line_height
-        
+
         # Stats
         stats = [
             f"Tickets: {player['tickets']:,}",
             f"Spent: ${player['spent']:,}",
             f"Won: ${player['winnings']:,}",
         ]
-        
+
         for stat in stats:
-            stat_text = self.font_tiny.render(stat, True, WHITE)
+            stat_text = stats_font.render(stat, True, WHITE)
             self.screen.blit(stat_text, (x + padding, curr_y))
-            curr_y += line_height - 2
-        
+            curr_y += line_height - int(2 * scale)
+
         # Net (colored)
         net = player["net"]
         net_color = GREEN if net >= 0 else RED
-        net_text = self.font_tiny.render(f"Net: ${net:,}", True, net_color)
+        net_text = stats_font.render(f"Net: ${net:,}", True, net_color)
         self.screen.blit(net_text, (x + padding, curr_y))
-        curr_y += line_height - 2
-        
+        curr_y += line_height - int(2 * scale)
+
         # Time and near-wins
-        time_text = self.font_tiny.render(f"Time: {player['elapsed_time']}", True, LIGHT_GRAY)
+        time_text = stats_font.render(f"Time: {player['elapsed_time']}", True, LIGHT_GRAY)
         self.screen.blit(time_text, (x + padding, curr_y))
-        curr_y += line_height - 2
-        
+        curr_y += line_height - int(2 * scale)
+
         # Best matches (in cyan)
-        best_text = self.font_tiny.render(f"Best: {player.get('best_white_matches', 0)}/5", True, CYAN)
+        best_text = stats_font.render(f"Best: {player.get('best_white_matches', 0)}/5", True, CYAN)
         self.screen.blit(best_text, (x + padding, curr_y))
-        
+
         if player["million_plus_wins"] > 0:
-            mil_text = self.font_tiny.render(f"$1M+: {player['million_plus_wins']}", True, GOLD)
-            self.screen.blit(mil_text, (x + padding + 60, curr_y))
-        
+            mil_text = stats_font.render(f"$1M+: {player['million_plus_wins']}", True, GOLD)
+            self.screen.blit(mil_text, (x + padding + int(60 * scale), curr_y))
+
         # Last prize flash
         if player["last_prize"] > 0:
-            prize_text = self.font_small.render(f"+${player['last_prize']:,}", True, GREEN)
+            prize_text = name_font.render(f"+${player['last_prize']:,}", True, GREEN)
             prize_rect = prize_text.get_rect(right=x + width - padding, top=y + padding)
             self.screen.blit(prize_text, prize_rect)
     
@@ -256,64 +282,64 @@ class Display:
             paused_text = self.font_small.render("⏸ PAUSED", True, GOLD)
             self.screen.blit(paused_text, (SCREEN_WIDTH - 100, 32))
         
-        # Small QR code
-        self.screen.blit(self.qr_small, (SCREEN_WIDTH - 85, 55))
+        # Small QR code (100x100, positioned in top-right)
+        self.screen.blit(self.qr_small, (SCREEN_WIDTH - 105, 45))
         
         # Winning numbers section
         if state["current_whites"]:
             self.draw_winning_numbers(state["current_whites"], state["current_powerball"], 80)
         
-        # Divider
-        pygame.draw.line(self.screen, LIGHT_GRAY, (10, 115), (SCREEN_WIDTH - 95, 115), 1)
+        # Divider (account for larger QR code)
+        pygame.draw.line(self.screen, LIGHT_GRAY, (10, 115), (SCREEN_WIDTH - 115, 115), 1)
         
         # Player grid
         players = state["players"]
         num_players = len(players)
-        
+
         if num_players == 0:
             # No players message
             msg = self.font_medium.render("Waiting for players...", True, WHITE)
             msg_rect = msg.get_rect(center=(SCREEN_WIDTH//2, SCREEN_HEIGHT//2))
             self.screen.blit(msg, msg_rect)
             return
-        
-        # Calculate grid layout
+
+        # Get dynamic card dimensions based on player count
         grid_top = 125
-        grid_height = SCREEN_HEIGHT - grid_top - 10
-        card_width = 175
-        card_height = 165
-        
+        card_width, card_height, scale = self._get_card_dimensions(num_players)
+
         # Determine visible players (4 at a time if > 4)
         if num_players <= 4:
             visible_players = players
-            cols = min(num_players, 4)
-            rows = 1
+            cols = num_players
         else:
             # Paginate through players every 5 seconds
             self.scroll_timer += 1
             if self.scroll_timer >= FPS * 5:  # 5 seconds
                 self.scroll_timer = 0
                 self.scroll_page = (self.scroll_page + 1) % 2
-            
+
             start_idx = self.scroll_page * 4
             visible_players = players[start_idx:start_idx + 4]
             cols = min(len(visible_players), 4)
-            rows = 1
-            
+
             # Page indicator
             page_text = self.font_tiny.render(f"Page {self.scroll_page + 1}/2", True, LIGHT_GRAY)
             self.screen.blit(page_text, (10, SCREEN_HEIGHT - 20))
-        
-        # Draw player cards
+
+        # Calculate card layout (account for larger QR code on right side)
+        available_width = SCREEN_WIDTH - 110  # Space for QR code
         total_width = cols * card_width + (cols - 1) * 10
-        start_x = (SCREEN_WIDTH - 90 - total_width) // 2
-        
+        start_x = (available_width - total_width) // 2
+
+        # Center vertically in available space
+        available_height = SCREEN_HEIGHT - grid_top - 10
+        start_y = grid_top + (available_height - card_height) // 2
+
         for i, player in enumerate(visible_players):
             col = i % cols
-            row = i // cols
             x = start_x + col * (card_width + 10)
-            y = grid_top + row * (card_height + 10)
-            self.draw_player_card(player, x, y, card_width, card_height)
+            y = start_y
+            self.draw_player_card(player, x, y, card_width, card_height, scale)
     
     def draw_jackpot_celebration(self, winner_name: str):
         """Draw the jackpot celebration screen."""
@@ -373,7 +399,7 @@ class Display:
             if event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_ESCAPE:
                     return False
-        
+
         # Update QR overlay timer
         if state.get("running") and state.get("player_count", 0) > 0:
             self.qr_overlay_timer += 1
@@ -382,19 +408,33 @@ class Display:
             if self.qr_overlay_active and self.qr_overlay_timer >= self.qr_overlay_interval + self.qr_overlay_duration:
                 self.qr_overlay_active = False
                 self.qr_overlay_timer = 0
-        
+
+        # Check for million dollar wins (not jackpot) to trigger flash
+        for player in state.get("players", []):
+            if 1_000_000 <= player.get("last_prize", 0) < 500_000_000:
+                self.million_flash_timer = 9  # 0.3 seconds at 30fps
+
         # Decide which screen to show
         if state.get("jackpot_hit"):
             self.draw_jackpot_celebration(state.get("jackpot_winner", "Someone"))
         elif state.get("player_count", 0) > 0:
             # Show game screen if there are players (running or paused)
             self.draw_game_screen(state)
+
+            # Million dollar win flash effect (subtle gold overlay)
+            if self.million_flash_timer > 0:
+                overlay = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT))
+                overlay.fill(GOLD)
+                overlay.set_alpha(128)  # 50% opacity
+                self.screen.blit(overlay, (0, 0))
+                self.million_flash_timer -= 1
+
             # Show QR overlay periodically (only when running)
             if state.get("running") and self.qr_overlay_active:
                 self.draw_qr_overlay(state)
         else:
             self.draw_idle_screen()
-        
+
         pygame.display.flip()
         self.clock.tick(FPS)
         return True

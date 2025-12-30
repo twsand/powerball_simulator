@@ -6,9 +6,13 @@ Handles all game state, player management, and lottery logic.
 import random
 import threading
 import time
+import json
+import os
 from dataclasses import dataclass, field
 from typing import Optional
-from datetime import datetime
+from datetime import datetime, timedelta
+
+STATE_FILE = "state.json"
 
 # Powerball rules
 WHITE_BALL_MAX = 69
@@ -256,6 +260,100 @@ class GameState:
         whites = sorted(random.sample(range(1, WHITE_BALL_MAX + 1), 5))
         pb = random.randint(1, POWERBALL_MAX)
         return whites, pb
+
+    def save_state(self, filepath: str = STATE_FILE) -> bool:
+        """Save game state to JSON file for persistence across restarts."""
+        with self.lock:
+            try:
+                state_data = {
+                    "saved_at": datetime.now().isoformat(),
+                    "total_drawings": self.total_drawings,
+                    "speed": self.speed,
+                    "last_jackpot_rolls": self.last_jackpot_rolls,
+                    "last_jackpot_winner": self.last_jackpot_winner,
+                    "player_order": self.player_order,
+                    "players": []
+                }
+
+                for pid in self.player_order:
+                    player = self.players[pid]
+                    # Calculate elapsed seconds to restore later
+                    elapsed_seconds = (datetime.now() - player.joined_at).total_seconds()
+                    state_data["players"].append({
+                        "id": player.id,
+                        "name": player.name,
+                        "numbers": player.numbers,
+                        "powerball": player.powerball,
+                        "tickets": player.tickets,
+                        "spent": player.spent,
+                        "winnings": player.winnings,
+                        "million_plus_wins": player.million_plus_wins,
+                        "jackpot_wins": player.jackpot_wins,
+                        "elapsed_seconds": elapsed_seconds,
+                        "best_white_matches": player.best_white_matches,
+                    })
+
+                with open(filepath, "w") as f:
+                    json.dump(state_data, f, indent=2)
+                print(f"State saved to {filepath}")
+                return True
+            except Exception as e:
+                print(f"Error saving state: {e}")
+                return False
+
+    def load_state(self, filepath: str = STATE_FILE) -> bool:
+        """Load game state from JSON file."""
+        if not os.path.exists(filepath):
+            print(f"No state file found at {filepath}")
+            return False
+
+        with self.lock:
+            try:
+                with open(filepath, "r") as f:
+                    state_data = json.load(f)
+
+                # Restore game state
+                self.total_drawings = state_data.get("total_drawings", 0)
+                self.speed = state_data.get("speed", 1)
+                self.last_jackpot_rolls = state_data.get("last_jackpot_rolls", 0)
+                self.last_jackpot_winner = state_data.get("last_jackpot_winner", "")
+
+                # Restore players
+                self.players.clear()
+                self.player_order.clear()
+
+                for pdata in state_data.get("players", []):
+                    # Calculate joined_at by subtracting elapsed time from now
+                    elapsed_seconds = pdata.get("elapsed_seconds", 0)
+                    joined_at = datetime.now() - timedelta(seconds=elapsed_seconds)
+
+                    player = Player(
+                        id=pdata["id"],
+                        name=pdata["name"],
+                        numbers=pdata["numbers"],
+                        powerball=pdata["powerball"],
+                        tickets=pdata.get("tickets", 0),
+                        spent=pdata.get("spent", 0),
+                        winnings=pdata.get("winnings", 0),
+                        million_plus_wins=pdata.get("million_plus_wins", 0),
+                        jackpot_wins=pdata.get("jackpot_wins", 0),
+                        joined_at=joined_at,
+                        best_white_matches=pdata.get("best_white_matches", 0),
+                    )
+                    self.players[player.id] = player
+                    self.player_order.append(player.id)
+
+                # Auto-start if players exist
+                if len(self.players) > 0:
+                    self.running = True
+
+                saved_at = state_data.get("saved_at", "unknown")
+                print(f"State restored from {filepath} (saved: {saved_at})")
+                print(f"  - {len(self.players)} players, {self.total_drawings:,} drawings")
+                return True
+            except Exception as e:
+                print(f"Error loading state: {e}")
+                return False
 
 
 # Global game instance
