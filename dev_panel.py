@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 """
 Powerball Simulator - Development Panel
-A web-based control panel for local development and Pi deployment.
+A web-based control panel for Pi deployment.
 
 Run this on your PC to:
-- Launch the simulator locally (web-only mode)
 - Push changes to Git
 - SSH to Pi and pull/restart
+- One-click deploy (commit + push + pull on Pi + restart)
 """
 
 import subprocess
@@ -470,11 +470,11 @@ def pi_pull():
 
 @app.route('/api/pi_restart', methods=['POST'])
 def pi_restart():
-    # Try to restart via screen session
-    cmd = f'ssh {CONFIG["pi_user"]}@{CONFIG["pi_host"]} "screen -S powerball -X quit; cd {CONFIG["pi_project_path"]} && screen -dmS powerball bash -c \'source venv/bin/activate && python main.py\'"'
+    # Kill only powerball-related processes (by path), clean up screens, then start fresh
+    cmd = f'ssh {CONFIG["pi_user"]}@{CONFIG["pi_host"]} "pkill -f \'powerball_simulator/main.py\' 2>/dev/null; screen -ls | grep powerball | cut -d. -f1 | awk \'{{print $1}}\' | xargs -r -I {{}} screen -S {{}} -X quit 2>/dev/null; screen -wipe 2>/dev/null; cd {CONFIG["pi_project_path"]} && screen -dmS powerball bash -c \'source venv/bin/activate && python main.py\'"'
     success, output = run_command(cmd)
     if success:
-        add_log("Restarted powerball in screen session", "success")
+        add_log("Killed old powerball processes and started fresh session", "success")
     return jsonify({"success": success, "output": output})
 
 @app.route('/api/pi_status', methods=['POST'])
@@ -519,8 +519,8 @@ def quick_deploy():
         add_log("Pull on Pi failed", "error")
         return jsonify({"success": False, "error": "Pull on Pi failed"})
     
-    # 4. Restart on Pi
-    cmd = f'ssh {CONFIG["pi_user"]}@{CONFIG["pi_host"]} "screen -S powerball -X quit 2>/dev/null; cd {CONFIG["pi_project_path"]} && screen -dmS powerball bash -c \'source venv/bin/activate && python main.py\'"'
+    # 4. Kill only powerball processes and restart on Pi
+    cmd = f'ssh {CONFIG["pi_user"]}@{CONFIG["pi_host"]} "pkill -f \'powerball_simulator/main.py\' 2>/dev/null; screen -ls | grep powerball | cut -d. -f1 | awk \'{{print $1}}\' | xargs -r -I {{}} screen -S {{}} -X quit 2>/dev/null; screen -wipe 2>/dev/null; cd {CONFIG["pi_project_path"]} && screen -dmS powerball bash -c \'source venv/bin/activate && python main.py\'"'
     success, _ = run_command(cmd)
     
     add_log("=== DEPLOY COMPLETE ===", "success")

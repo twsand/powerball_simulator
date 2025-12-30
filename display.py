@@ -142,11 +142,11 @@ class Display:
     
     def draw_winning_numbers(self, whites: list, powerball: int, y_pos: int):
         """Draw the current winning numbers."""
-        start_x = SCREEN_WIDTH // 2 - 100  # Shifted right to avoid label overlap
+        start_x = SCREEN_WIDTH // 2 - 70  # Shifted right for better spacing from label
 
-        # Label
+        # Label - fixed left margin for even spacing
         label = self.font_small.render("WINNING NUMBERS:", True, GOLD)
-        self.screen.blit(label, (start_x - 180, y_pos - 8))
+        self.screen.blit(label, (10, y_pos - 8))
         
         # White balls
         for i, num in enumerate(whites):
@@ -360,7 +360,7 @@ class Display:
         name_rect = name_text.get_rect(centerx=SCREEN_WIDTH//2, y=200)
         self.screen.blit(name_text, name_rect)
         
-        amount_text = self.font_large.render("$500,000,000", True, WHITE)
+        amount_text = self.font_large.render("$1,800,000,000", True, WHITE)
         amount_rect = amount_text.get_rect(centerx=SCREEN_WIDTH//2, y=300)
         self.screen.blit(amount_text, amount_rect)
     
@@ -409,10 +409,10 @@ class Display:
                 self.qr_overlay_active = False
                 self.qr_overlay_timer = 0
 
-        # Check for million dollar wins (not jackpot) to trigger flash
-        for player in state.get("players", []):
-            if 1_000_000 <= player.get("last_prize", 0) < 500_000_000:
-                self.million_flash_timer = 9  # 0.3 seconds at 30fps
+        # Check for million dollar wins (persistent flag survives batched drawings)
+        if state.get("million_win_pending"):
+            self.million_flash_timer = 90  # 3 seconds at 30fps
+            game.clear_million_flash()  # Acknowledge the win
 
         # Decide which screen to show
         if state.get("jackpot_hit"):

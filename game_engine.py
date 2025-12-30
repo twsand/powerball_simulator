@@ -21,7 +21,7 @@ TICKET_COST = 2
 
 # Prize structure (white ball matches, powerball match) -> prize amount
 PRIZES = {
-    (5, True): 500_000_000,  # Jackpot
+    (5, True): 1_800_000_000,  # Jackpot ($1.8B)
     (5, False): 1_000_000,
     (4, True): 50_000,
     (4, False): 100,
@@ -65,9 +65,9 @@ class Player:
         self.spent += TICKET_COST
         self.winnings += prize
         
-        if prize >= 1_000_000 and prize < 500_000_000:
+        if prize >= 1_000_000 and prize < 1_800_000_000:
             self.million_plus_wins += 1
-        elif prize >= 500_000_000:
+        elif prize >= 1_800_000_000:
             self.jackpot_wins += 1
             
         return prize
@@ -121,6 +121,8 @@ class GameState:
         # Jackpot history
         self.last_jackpot_rolls: int = 0
         self.last_jackpot_winner: str = ""
+        # Million dollar win flash (persists until display acknowledges)
+        self.million_win_pending: bool = False
         
     def add_player(self, name: str, numbers: list[int], powerball: int) -> tuple[bool, str]:
         """Add a new player. Returns (success, message/player_id)."""
@@ -187,7 +189,12 @@ class GameState:
             self.jackpot_winner = None
             if len(self.players) > 0:
                 self.running = True
-    
+
+    def clear_million_flash(self):
+        """Clear the million dollar win flash flag (called by display after showing effect)."""
+        with self.lock:
+            self.million_win_pending = False
+
     def set_speed(self, speed: int):
         """Set drawings per second (1, 10, 100, 1000, 10000)."""
         with self.lock:
@@ -222,7 +229,7 @@ class GameState:
                 player = self.players[player_id]
                 prize = player.check_ticket(self.current_whites, self.current_powerball)
                 
-                if prize >= 500_000_000:
+                if prize >= 1_800_000_000:
                     self.jackpot_hit = True
                     self.jackpot_winner = player.name
                     # Log jackpot history
@@ -232,7 +239,10 @@ class GameState:
                     self.running = False
                     results["jackpot_hit"] = True
                     results["jackpot_winner"] = player.name
-                
+                elif prize >= 1_000_000:
+                    # Set flag for million dollar flash (display will clear it)
+                    self.million_win_pending = True
+
                 results["players"].append(player.to_dict())
             
             return results
@@ -251,6 +261,7 @@ class GameState:
                 "jackpot_winner": self.jackpot_winner,
                 "last_jackpot_rolls": self.last_jackpot_rolls,
                 "last_jackpot_winner": self.last_jackpot_winner,
+                "million_win_pending": self.million_win_pending,
                 "players": [self.players[pid].to_dict() for pid in self.player_order],
             }
 

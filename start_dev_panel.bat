@@ -3,25 +3,13 @@ echo ========================================
 echo Powerball Dev Panel Launcher
 echo ========================================
 echo.
+echo Starting Dev Panel via WSL (for SSH key access)...
+echo Installing dependencies if needed...
+echo.
 
-REM Check for Python
-python --version >nul 2>&1
-if errorlevel 1 (
-    echo ERROR: Python not found. Please install Python first.
-    pause
-    exit /b 1
-)
+REM Run via WSL, install flask (use --break-system-packages for newer Python)
+wsl -e bash -c "pip3 install --break-system-packages -q flask 2>/dev/null || pip3 install -q flask 2>/dev/null || true; cd /mnt/s/py/powerball_simulator && python3 dev_panel.py"
 
-REM Check if Flask is installed
-python -c "import flask" >nul 2>&1
-if errorlevel 1 (
-    echo Installing Flask...
-    pip install flask flask-socketio
-)
-
-echo Starting Dev Panel...
 echo.
 echo Open http://localhost:5050 in your browser
-echo.
-python dev_panel.py
 pause
