@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Powerball - Watch</title>
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            color: white;
+            margin: 0;
+            padding: 15px;
+            min-height: 100vh;
+        }
+        
+        .header {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+        
+        h1 {
+            color: #ffd700;
+            font-size: 1.5rem;
+            margin: 0 0 5px 0;
+        }
+        
+        .drawing-count {
+            font-size: 1.2rem;
+            color: #888;
+        }
+        
+        .last-jackpot {
+            font-size: 0.85rem;
+            color: #ffd700;
+            margin-top: 5px;
+        }
+        
+        .winning-numbers {
+            display: flex;
+            justify-content: center;
+            gap: 8px;
+            margin: 20px 0;
+            flex-wrap: wrap;
+        }
+        
+        .ball {
+            width: 38px;
+            height: 38px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            font-size: 14px;
+        }
+        
+        .ball.white {
+            background: white;
+            color: black;
+        }
+        
+        .ball.powerball {
+            background: #c62828;
+            color: white;
+        }
+        
+        .player-card {
+            background: rgba(255,255,255,0.05);
+            border-radius: 12px;
+            padding: 15px;
+            margin-bottom: 15px;
+            border: 1px solid rgba(255,255,255,0.1);
+        }
+        
+        .player-card.highlight {
+            border-color: #ffd700;
+            background: rgba(255,215,0,0.1);
+        }
+        
+        .player-name {
+            font-size: 1.1rem;
+            font-weight: bold;
+            color: #ffd700;
+            margin-bottom: 8px;
+        }
+        
+        .player-numbers {
+            display: flex;
+            gap: 6px;
+            margin-bottom: 10px;
+            flex-wrap: wrap;
+        }
+        
+        .player-numbers .ball {
+            width: 32px;
+            height: 32px;
+            font-size: 12px;
+        }
+        
+        .match-indicators {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 12px;
+        }
+        
+        .indicator {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+        }
+        
+        .indicator.match { background: #4caf50; }
+        .indicator.best { background: #00bcd4; }
+        .indicator.miss { background: #f44336; }
+        
+        .stats-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+            font-size: 0.9rem;
+        }
+        
+        .stat-item {
+            display: flex;
+            justify-content: space-between;
+        }
+        
+        .stat-label {
+            color: #888;
+        }
+        
+        .stat-value {
+            font-weight: 500;
+        }
+        
+        .stat-value.positive { color: #4caf50; }
+        .stat-value.negative { color: #f44336; }
+        .stat-value.gold { color: #ffd700; }
+        .stat-value.cyan { color: #00bcd4; }
+        
+        .last-update {
+            text-align: center;
+            color: #666;
+            font-size: 0.8rem;
+            margin-top: 20px;
+        }
+        
+        .no-players {
+            text-align: center;
+            color: #666;
+            padding: 40px;
+        }
+        
+        .join-link {
+            text-align: center;
+            margin-top: 20px;
+        }
+        
+        .join-link a {
+            color: #ffd700;
+            text-decoration: none;
+            padding: 10px 20px;
+            border: 2px solid #ffd700;
+            border-radius: 8px;
+            display: inline-block;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🎱 POWERBALL LIVE</h1>
+        <div class="drawing-count" id="drawingCount">Drawing #0</div>
+        <div class="last-jackpot" id="lastJackpot"></div>
+    </div>
+    
+    <div class="winning-numbers" id="winningNumbers">
+        <div class="ball white">-</div>
+        <div class="ball white">-</div>
+        <div class="ball white">-</div>
+        <div class="ball white">-</div>
+        <div class="ball white">-</div>
+        <div class="ball powerball">-</div>
+    </div>
+    
+    <div id="playerList">
+        <div class="no-players">Waiting for game data...</div>
+    </div>
+    
+    <div class="join-link">
+        <a href="/">Join the Game</a>
+    </div>
+    
+    <div class="last-update" id="lastUpdate">Last update: --</div>
+    
+    <script>
+        let myPlayerId = localStorage.getItem('powerball_player_id');
+        
+        async function fetchState() {
+            try {
+                const resp = await fetch('/api/state');
+                const state = await resp.json();
+                updateUI(state);
+            } catch (e) {
+                console.error('Failed to fetch state', e);
+            }
+        }
+        
+        function updateUI(state) {
+            // Drawing count
+            document.getElementById('drawingCount').textContent = 
+                `Drawing #${state.total_drawings?.toLocaleString() || 0} (${state.speed || 1}x)`;
+            
+            // Last jackpot
+            const jackpotEl = document.getElementById('lastJackpot');
+            if (state.last_jackpot_rolls > 0) {
+                jackpotEl.textContent = `Last jackpot: ${state.last_jackpot_rolls.toLocaleString()} rolls by ${state.last_jackpot_winner}`;
+            } else {
+                jackpotEl.textContent = '';
+            }
+            
+            // Winning numbers
+            const numsEl = document.getElementById('winningNumbers');
+            if (state.current_whites && state.current_whites.length === 5) {
+                numsEl.innerHTML = state.current_whites.map(n => 
+                    `<div class="ball white">${n}</div>`
+                ).join('') + `<div class="ball powerball">${state.current_powerball}</div>`;
+            }
+            
+            // Players
+            const listEl = document.getElementById('playerList');
+            if (!state.players || state.players.length === 0) {
+                listEl.innerHTML = '<div class="no-players">No players yet. Be the first!</div>';
+            } else {
+                listEl.innerHTML = state.players.map(p => {
+                    const isMe = p.id === myPlayerId;
+                    const [whiteMatches, pbMatch] = p.last_matches || [0, false];
+                    const bestWhite = p.best_white_matches || 0;
+                    
+                    // Build match indicators
+                    let indicators = '';
+                    for (let i = 0; i < 5; i++) {
+                        if (i < whiteMatches) {
+                            indicators += '<div class="indicator match"></div>';
+                        } else if (i < bestWhite) {
+                            indicators += '<div class="indicator best"></div>';
+                        } else {
+                            indicators += '<div class="indicator miss"></div>';
+                        }
+                    }
+                    indicators += `<div class="indicator ${pbMatch ? 'match' : 'miss'}"></div>`;
+                    
+                    const net = p.winnings - p.spent;
+                    const netClass = net >= 0 ? 'positive' : 'negative';
+                    
+                    return `
+                        <div class="player-card ${isMe ? 'highlight' : ''}">
+                            <div class="player-name">${escapeHtml(p.name)}${isMe ? ' (You)' : ''}</div>
+                            <div class="player-numbers">
+                                ${p.numbers.map(n => `<div class="ball white">${n}</div>`).join('')}
+                                <div class="ball powerball">${p.powerball}</div>
+                            </div>
+                            <div class="match-indicators">${indicators}</div>
+                            <div class="stats-grid">
+                                <div class="stat-item">
+                                    <span class="stat-label">Tickets:</span>
+                                    <span class="stat-value">${p.tickets.toLocaleString()}</span>
+                                </div>
+                                <div class="stat-item">
+                                    <span class="stat-label">Spent:</span>
+                                    <span class="stat-value">$${p.spent.toLocaleString()}</span>
+                                </div>
+                                <div class="stat-item">
+                                    <span class="stat-label">Won:</span>
+                                    <span class="stat-value">$${p.winnings.toLocaleString()}</span>
+                                </div>
+                                <div class="stat-item">
+                                    <span class="stat-label">Net:</span>
+                                    <span class="stat-value ${netClass}">$${net.toLocaleString()}</span>
+                                </div>
+                                <div class="stat-item">
+                                    <span class="stat-label">Best:</span>
+                                    <span class="stat-value cyan">${bestWhite}/5</span>
+                                </div>
+                                <div class="stat-item">
+                                    <span class="stat-label">Time:</span>
+                                    <span class="stat-value">${p.elapsed_time}</span>
+                                </div>
+                                ${p.million_plus_wins > 0 ? `
+                                <div class="stat-item">
+                                    <span class="stat-label">$1M+ Wins:</span>
+                                    <span class="stat-value gold">${p.million_plus_wins}</span>
+                                </div>
+                                ` : ''}
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+            }
+            
+            // Last update time
+            document.getElementById('lastUpdate').textContent = 
+                `Last update: ${new Date().toLocaleTimeString()}`;
+        }
+        
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+        
+        // Initial fetch
+        fetchState();
+        
+        // Refresh every 30 seconds (light on resources)
+        setInterval(fetchState, 30000);
+    </script>
+</body>
+</html>

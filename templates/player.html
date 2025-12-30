@@ -1,0 +1,367 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Powerball Simulator</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            -webkit-tap-highlight-color: transparent;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            color: white;
+            margin: 0;
+            padding: 20px;
+            min-height: 100vh;
+        }
+        
+        .container {
+            max-width: 400px;
+            margin: 0 auto;
+        }
+        
+        h1 {
+            text-align: center;
+            color: #ffd700;
+            font-size: 1.8rem;
+            margin-bottom: 10px;
+        }
+        
+        .subtitle {
+            text-align: center;
+            color: #888;
+            margin-bottom: 30px;
+            font-size: 0.9rem;
+        }
+        
+        .form-group {
+            margin-bottom: 20px;
+        }
+        
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 500;
+            color: #ccc;
+        }
+        
+        input[type="text"], input[type="number"] {
+            width: 100%;
+            padding: 14px;
+            border: 2px solid #333;
+            border-radius: 10px;
+            background: #2a2a4a;
+            color: white;
+            font-size: 16px;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+        
+        input:focus {
+            border-color: #ffd700;
+        }
+        
+        .number-grid {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 8px;
+            margin-bottom: 15px;
+        }
+        
+        .number-input {
+            text-align: center;
+            padding: 12px 8px;
+            font-size: 18px;
+            font-weight: bold;
+        }
+        
+        .powerball-section {
+            background: #c62828;
+            padding: 15px;
+            border-radius: 12px;
+            margin-bottom: 20px;
+        }
+        
+        .powerball-section label {
+            color: white;
+        }
+        
+        .powerball-section input {
+            background: #e53935;
+            border-color: #b71c1c;
+        }
+        
+        .quick-pick-btn {
+            width: 100%;
+            padding: 12px;
+            background: #333;
+            color: #ffd700;
+            border: 2px solid #ffd700;
+            border-radius: 10px;
+            font-size: 16px;
+            cursor: pointer;
+            margin-bottom: 20px;
+            transition: all 0.2s;
+        }
+        
+        .quick-pick-btn:hover {
+            background: #ffd700;
+            color: #333;
+        }
+        
+        .submit-btn {
+            width: 100%;
+            padding: 16px;
+            background: linear-gradient(135deg, #ffd700 0%, #ffaa00 100%);
+            color: #1a1a2e;
+            border: none;
+            border-radius: 12px;
+            font-size: 18px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        
+        .submit-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 20px rgba(255, 215, 0, 0.4);
+        }
+        
+        .submit-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+        }
+        
+        .status {
+            text-align: center;
+            padding: 15px;
+            border-radius: 10px;
+            margin-top: 20px;
+            display: none;
+        }
+        
+        .status.success {
+            display: block;
+            background: #1b5e20;
+            color: #a5d6a7;
+        }
+        
+        .status.error {
+            display: block;
+            background: #b71c1c;
+            color: #ef9a9a;
+        }
+        
+        .status.playing {
+            display: block;
+            background: #1565c0;
+            color: #90caf9;
+        }
+        
+        .rules {
+            margin-top: 30px;
+            padding: 15px;
+            background: rgba(255,255,255,0.05);
+            border-radius: 10px;
+            font-size: 0.85rem;
+            color: #888;
+        }
+        
+        .rules h3 {
+            color: #ffd700;
+            margin-top: 0;
+        }
+        
+        .your-numbers {
+            display: none;
+            text-align: center;
+            margin-top: 30px;
+            padding: 20px;
+            background: rgba(255,215,0,0.1);
+            border-radius: 12px;
+            border: 2px solid #ffd700;
+        }
+        
+        .your-numbers h3 {
+            color: #ffd700;
+            margin-top: 0;
+        }
+        
+        .ball-display {
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+            margin-top: 15px;
+        }
+        
+        .ball {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background: white;
+            color: black;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            font-size: 16px;
+        }
+        
+        .ball.powerball {
+            background: #c62828;
+            color: white;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎱 POWERBALL</h1>
+        <p class="subtitle">Pick your numbers. See how long it takes to win.</p>
+        
+        <form id="joinForm">
+            <div class="form-group">
+                <label for="name">Your Name</label>
+                <input type="text" id="name" maxlength="20" placeholder="Enter your name" required>
+            </div>
+            
+            <button type="button" class="quick-pick-btn" onclick="quickPick()">
+                ⚡ Quick Pick (Random Numbers)
+            </button>
+            
+            <div class="form-group">
+                <label>Pick 5 Numbers (1-{{ white_max }})</label>
+                <div class="number-grid">
+                    <input type="number" class="number-input white-ball" min="1" max="{{ white_max }}" required>
+                    <input type="number" class="number-input white-ball" min="1" max="{{ white_max }}" required>
+                    <input type="number" class="number-input white-ball" min="1" max="{{ white_max }}" required>
+                    <input type="number" class="number-input white-ball" min="1" max="{{ white_max }}" required>
+                    <input type="number" class="number-input white-ball" min="1" max="{{ white_max }}" required>
+                </div>
+            </div>
+            
+            <div class="powerball-section">
+                <label for="powerball">Powerball (1-{{ pb_max }})</label>
+                <input type="number" id="powerball" class="number-input" min="1" max="{{ pb_max }}" required>
+            </div>
+            
+            <button type="submit" class="submit-btn">🎰 Start Playing!</button>
+        </form>
+        
+        <div id="status" class="status"></div>
+        
+        <div id="yourNumbers" class="your-numbers">
+            <h3>Your Numbers</h3>
+            <div class="ball-display" id="ballDisplay"></div>
+            <p style="margin-top: 15px; color: #888;">Watch the screen to see your progress!</p>
+            <a href="/watch" style="display: inline-block; margin-top: 15px; color: #ffd700; text-decoration: none; padding: 10px 20px; border: 2px solid #ffd700; border-radius: 8px;">📊 Watch Live Stats</a>
+        </div>
+        
+        <div class="rules">
+            <h3>How It Works</h3>
+            <p>Pick your lucky numbers just like real Powerball. The simulator will continuously buy "tickets" with your numbers and check them against random drawings.</p>
+            <p>Each ticket costs $2. Watch the display to see how fast you're losing money... or maybe you'll get lucky?</p>
+            <p><strong>Jackpot odds: 1 in 292,201,338</strong></p>
+        </div>
+    </div>
+    
+    <script>
+        const form = document.getElementById('joinForm');
+        const status = document.getElementById('status');
+        const yourNumbers = document.getElementById('yourNumbers');
+        const ballDisplay = document.getElementById('ballDisplay');
+        const whiteBalls = document.querySelectorAll('.white-ball');
+        
+        async function quickPick() {
+            try {
+                const resp = await fetch('/api/quickpick');
+                const data = await resp.json();
+                
+                whiteBalls.forEach((input, i) => {
+                    input.value = data.numbers[i];
+                });
+                document.getElementById('powerball').value = data.powerball;
+            } catch (e) {
+                showStatus('error', 'Failed to generate numbers');
+            }
+        }
+        
+        function showStatus(type, message) {
+            status.className = 'status ' + type;
+            status.textContent = message;
+        }
+        
+        function displayYourNumbers(numbers, powerball) {
+            ballDisplay.innerHTML = '';
+            numbers.forEach(n => {
+                const ball = document.createElement('div');
+                ball.className = 'ball';
+                ball.textContent = n;
+                ballDisplay.appendChild(ball);
+            });
+            const pb = document.createElement('div');
+            pb.className = 'ball powerball';
+            pb.textContent = powerball;
+            ballDisplay.appendChild(pb);
+            yourNumbers.style.display = 'block';
+        }
+        
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const name = document.getElementById('name').value.trim();
+            const numbers = Array.from(whiteBalls).map(input => parseInt(input.value));
+            const powerball = parseInt(document.getElementById('powerball').value);
+            
+            // Validate
+            if (!name) {
+                showStatus('error', 'Please enter your name');
+                return;
+            }
+            
+            if (numbers.some(n => isNaN(n) || n < 1 || n > 69)) {
+                showStatus('error', 'All numbers must be between 1 and 69');
+                return;
+            }
+            
+            if (new Set(numbers).size !== 5) {
+                showStatus('error', 'All 5 numbers must be different');
+                return;
+            }
+            
+            if (isNaN(powerball) || powerball < 1 || powerball > 26) {
+                showStatus('error', 'Powerball must be between 1 and 26');
+                return;
+            }
+            
+            // Submit
+            try {
+                const resp = await fetch('/api/join', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ name, numbers, powerball })
+                });
+                
+                const data = await resp.json();
+                
+                if (data.success) {
+                    // Save player ID for watch page
+                    localStorage.setItem('powerball_player_id', data.player_id);
+                    showStatus('success', '🎉 You\'re in! Watch the screen!');
+                    displayYourNumbers(numbers, powerball);
+                    form.style.display = 'none';
+                    document.querySelector('.quick-pick-btn').style.display = 'none';
+                } else {
+                    showStatus('error', data.error || 'Failed to join');
+                }
+            } catch (e) {
+                showStatus('error', 'Connection error. Try again.');
+            }
+        });
+    </script>
+</body>
+</html>

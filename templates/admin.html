@@ -1,0 +1,432 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Powerball Admin</title>
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #1a1a2e;
+            color: white;
+            margin: 0;
+            padding: 20px;
+            min-height: 100vh;
+        }
+        
+        .container {
+            max-width: 600px;
+            margin: 0 auto;
+        }
+        
+        h1 {
+            color: #ffd700;
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        
+        .auth-section {
+            background: #2a2a4a;
+            padding: 20px;
+            border-radius: 12px;
+            margin-bottom: 20px;
+        }
+        
+        .auth-section.authenticated {
+            display: none;
+        }
+        
+        .controls {
+            display: none;
+        }
+        
+        .controls.show {
+            display: block;
+        }
+        
+        label {
+            display: block;
+            margin-bottom: 8px;
+            color: #ccc;
+        }
+        
+        input[type="password"], input[type="text"] {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #333;
+            border-radius: 8px;
+            background: #1a1a2e;
+            color: white;
+            font-size: 16px;
+            margin-bottom: 15px;
+        }
+        
+        input:focus {
+            outline: none;
+            border-color: #ffd700;
+        }
+        
+        button {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            cursor: pointer;
+            transition: all 0.2s;
+            margin-right: 10px;
+            margin-bottom: 10px;
+        }
+        
+        .btn-primary {
+            background: #ffd700;
+            color: #1a1a2e;
+        }
+        
+        .btn-danger {
+            background: #c62828;
+            color: white;
+        }
+        
+        .btn-secondary {
+            background: #444;
+            color: white;
+        }
+        
+        button:hover {
+            transform: translateY(-2px);
+            opacity: 0.9;
+        }
+        
+        .section {
+            background: #2a2a4a;
+            padding: 20px;
+            border-radius: 12px;
+            margin-bottom: 20px;
+        }
+        
+        .section h2 {
+            margin-top: 0;
+            color: #ffd700;
+            font-size: 1.2rem;
+            border-bottom: 1px solid #444;
+            padding-bottom: 10px;
+        }
+        
+        .player-list {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+        
+        .player-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px;
+            background: #1a1a2e;
+            border-radius: 8px;
+            margin-bottom: 8px;
+        }
+        
+        .player-info {
+            flex: 1;
+        }
+        
+        .player-name {
+            font-weight: bold;
+            color: #ffd700;
+        }
+        
+        .player-stats {
+            font-size: 0.85rem;
+            color: #888;
+            margin-top: 4px;
+        }
+        
+        .speed-buttons {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+        
+        .speed-btn {
+            flex: 1;
+            min-width: 80px;
+        }
+        
+        .speed-btn.active {
+            background: #ffd700;
+            color: #1a1a2e;
+        }
+        
+        .status-bar {
+            background: #333;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            display: flex;
+            justify-content: space-around;
+            text-align: center;
+        }
+        
+        .status-item {
+            flex: 1;
+        }
+        
+        .status-value {
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: #ffd700;
+        }
+        
+        .status-label {
+            font-size: 0.8rem;
+            color: #888;
+        }
+        
+        .no-players {
+            text-align: center;
+            color: #666;
+            padding: 20px;
+        }
+        
+        .refresh-btn {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            background: #ffd700;
+            color: #1a1a2e;
+            font-size: 24px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎱 Admin Panel</h1>
+        
+        <div id="authSection" class="auth-section">
+            <label for="password">Admin Password</label>
+            <input type="password" id="password" placeholder="Enter password">
+            <button class="btn-primary" onclick="authenticate()">Login</button>
+        </div>
+        
+        <div id="controls" class="controls">
+            <div class="status-bar" id="statusBar">
+                <div class="status-item">
+                    <div class="status-value" id="drawingCount">0</div>
+                    <div class="status-label">Drawings</div>
+                </div>
+                <div class="status-item">
+                    <div class="status-value" id="playerCount">0</div>
+                    <div class="status-label">Players</div>
+                </div>
+                <div class="status-item">
+                    <div class="status-value" id="currentSpeed">1x</div>
+                    <div class="status-label">Speed</div>
+                </div>
+                <div class="status-item">
+                    <div class="status-value" id="gameStatus">-</div>
+                    <div class="status-label">Status</div>
+                </div>
+            </div>
+            
+            <div class="section">
+                <h2>⚡ Speed Control</h2>
+                <div class="speed-buttons">
+                    <button class="btn-secondary speed-btn" data-speed="1">1x</button>
+                    <button class="btn-secondary speed-btn" data-speed="10">10x</button>
+                    <button class="btn-secondary speed-btn" data-speed="100">100x</button>
+                    <button class="btn-secondary speed-btn" data-speed="1000">1000x</button>
+                    <button class="btn-secondary speed-btn" data-speed="10000">10000x</button>
+                </div>
+            </div>
+            
+            <div class="section">
+                <h2>👥 Players</h2>
+                <div id="lastJackpotInfo" style="margin-bottom: 15px; color: #ffd700; display: none;"></div>
+                <ul class="player-list" id="playerList">
+                    <li class="no-players">No players yet</li>
+                </ul>
+            </div>
+            
+            <div class="section">
+                <h2>⚠️ Controls</h2>
+                <button class="btn-primary" onclick="resumeGame()">▶️ Resume After Jackpot</button>
+                <button class="btn-danger" onclick="resetGame()">Reset Entire Game</button>
+            </div>
+        </div>
+        
+        <button class="refresh-btn" onclick="refreshState()">↻</button>
+    </div>
+    
+    <script>
+        let password = '';
+        let currentState = {};
+        
+        function authenticate() {
+            password = document.getElementById('password').value;
+            if (password) {
+                document.getElementById('authSection').style.display = 'none';
+                document.getElementById('controls').classList.add('show');
+                refreshState();
+                setInterval(refreshState, 2000);
+            }
+        }
+        
+        async function refreshState() {
+            try {
+                const resp = await fetch('/api/state');
+                currentState = await resp.json();
+                updateUI();
+            } catch (e) {
+                console.error('Failed to refresh state', e);
+            }
+        }
+        
+        function updateUI() {
+            document.getElementById('drawingCount').textContent = currentState.total_drawings?.toLocaleString() || '0';
+            document.getElementById('playerCount').textContent = currentState.player_count || '0';
+            document.getElementById('currentSpeed').textContent = (currentState.speed || 1) + 'x';
+            
+            // Game status
+            const statusEl = document.getElementById('gameStatus');
+            if (currentState.jackpot_hit) {
+                statusEl.textContent = '🎉 JACKPOT!';
+                statusEl.style.color = '#ffd700';
+            } else if (currentState.running) {
+                statusEl.textContent = '▶️ Running';
+                statusEl.style.color = '#4caf50';
+            } else if (currentState.player_count > 0) {
+                statusEl.textContent = '⏸️ Paused';
+                statusEl.style.color = '#ff9800';
+            } else {
+                statusEl.textContent = '⏹️ Idle';
+                statusEl.style.color = '#888';
+            }
+            
+            // Update speed button states
+            document.querySelectorAll('.speed-btn').forEach(btn => {
+                btn.classList.toggle('active', parseInt(btn.dataset.speed) === currentState.speed);
+            });
+            
+            // Last jackpot info
+            const jackpotInfoEl = document.getElementById('lastJackpotInfo');
+            if (currentState.last_jackpot_rolls > 0) {
+                jackpotInfoEl.textContent = `🏆 Last jackpot: ${currentState.last_jackpot_rolls.toLocaleString()} rolls by ${currentState.last_jackpot_winner}`;
+                jackpotInfoEl.style.display = 'block';
+            } else {
+                jackpotInfoEl.style.display = 'none';
+            }
+            
+            // Update player list
+            const playerList = document.getElementById('playerList');
+            const players = currentState.players || [];
+            
+            if (players.length === 0) {
+                playerList.innerHTML = '<li class="no-players">No players yet</li>';
+            } else {
+                playerList.innerHTML = players.map(p => `
+                    <li class="player-item">
+                        <div class="player-info">
+                            <div class="player-name">${escapeHtml(p.name)}</div>
+                            <div class="player-stats">
+                                Tickets: ${p.tickets.toLocaleString()} | 
+                                Spent: $${p.spent.toLocaleString()} | 
+                                Won: $${p.winnings.toLocaleString()} |
+                                Net: $${p.net.toLocaleString()}
+                            </div>
+                        </div>
+                        <button class="btn-danger" onclick="removePlayer('${p.id}')">Remove</button>
+                    </li>
+                `).join('');
+            }
+        }
+        
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+        
+        async function setSpeed(speed) {
+            try {
+                await fetch('/api/admin/speed', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ password, speed })
+                });
+                refreshState();
+            } catch (e) {
+                alert('Failed to set speed');
+            }
+        }
+        
+        async function removePlayer(playerId) {
+            if (!confirm('Remove this player?')) return;
+            
+            try {
+                await fetch('/api/admin/remove', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ password, player_id: playerId })
+                });
+                refreshState();
+            } catch (e) {
+                alert('Failed to remove player');
+            }
+        }
+        
+        async function resetGame() {
+            if (!confirm('Reset the ENTIRE game? All players will be removed!')) return;
+            if (!confirm('Are you SURE? This cannot be undone!')) return;
+            
+            try {
+                await fetch('/api/admin/reset', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ password })
+                });
+                refreshState();
+            } catch (e) {
+                alert('Failed to reset game');
+            }
+        }
+        
+        async function resumeGame() {
+            try {
+                await fetch('/api/admin/resume', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ password })
+                });
+                refreshState();
+            } catch (e) {
+                alert('Failed to resume game');
+            }
+        }
+        
+        // Speed button click handlers
+        document.querySelectorAll('.speed-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                setSpeed(parseInt(btn.dataset.speed));
+            });
+        });
+        
+        // Enter key to login
+        document.getElementById('password').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') authenticate();
+        });
+    </script>
+</body>
+</html>
