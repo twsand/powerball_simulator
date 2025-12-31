@@ -123,7 +123,11 @@ class GameState:
         self.last_jackpot_winner: str = ""
         # Million dollar win flash (persists until display acknowledges)
         self.million_win_pending: bool = False
-        
+        # Jackpot winner stats (captured at win time for display)
+        self.jackpot_winner_spent: int = 0
+        self.jackpot_winner_time: str = ""
+        self.jackpot_winner_tickets: int = 0
+
     def add_player(self, name: str, numbers: list[int], powerball: int) -> tuple[bool, str]:
         """Add a new player. Returns (success, message/player_id)."""
         with self.lock:
@@ -180,8 +184,16 @@ class GameState:
             self.running = False
             self.jackpot_hit = False
             self.jackpot_winner = None
+            # Clear winner stats
+            self.jackpot_winner_spent = 0
+            self.jackpot_winner_time = ""
+            self.jackpot_winner_tickets = 0
             # Keep jackpot history for the banner
-    
+
+        # Delete state file to prevent reload of old state
+        if os.path.exists(STATE_FILE):
+            os.remove(STATE_FILE)
+
     def resume_after_jackpot(self):
         """Resume game after jackpot celebration."""
         with self.lock:
@@ -235,6 +247,10 @@ class GameState:
                     # Log jackpot history
                     self.last_jackpot_rolls = self.total_drawings
                     self.last_jackpot_winner = player.name
+                    # Capture winner stats for display
+                    self.jackpot_winner_spent = player.spent
+                    self.jackpot_winner_time = player.get_elapsed_time()
+                    self.jackpot_winner_tickets = player.tickets
                     # Stop the game on jackpot
                     self.running = False
                     results["jackpot_hit"] = True
@@ -261,6 +277,9 @@ class GameState:
                 "jackpot_winner": self.jackpot_winner,
                 "last_jackpot_rolls": self.last_jackpot_rolls,
                 "last_jackpot_winner": self.last_jackpot_winner,
+                "jackpot_winner_spent": self.jackpot_winner_spent,
+                "jackpot_winner_time": self.jackpot_winner_time,
+                "jackpot_winner_tickets": self.jackpot_winner_tickets,
                 "million_win_pending": self.million_win_pending,
                 "players": [self.players[pid].to_dict() for pid in self.player_order],
             }

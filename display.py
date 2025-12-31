@@ -341,28 +341,49 @@ class Display:
             y = start_y
             self.draw_player_card(player, x, y, card_width, card_height, scale)
     
-    def draw_jackpot_celebration(self, winner_name: str):
-        """Draw the jackpot celebration screen."""
+    def draw_jackpot_celebration(self, state: dict):
+        """Draw the jackpot celebration screen with winner stats."""
         self.celebration_frame += 1
-        
+
         # Flashing background
         if (self.celebration_frame // 5) % 2 == 0:
             self.screen.fill(GOLD)
         else:
             self.screen.fill(RED)
-        
+
+        winner_name = state.get("jackpot_winner", "Someone")
+
         # Giant text
         winner_text = self.font_large.render("JACKPOT!!!", True, WHITE)
-        winner_rect = winner_text.get_rect(centerx=SCREEN_WIDTH//2, y=100)
+        winner_rect = winner_text.get_rect(centerx=SCREEN_WIDTH//2, y=60)
         self.screen.blit(winner_text, winner_rect)
-        
+
         name_text = self.font_large.render(f"{winner_name} WINS!", True, BLACK)
-        name_rect = name_text.get_rect(centerx=SCREEN_WIDTH//2, y=200)
+        name_rect = name_text.get_rect(centerx=SCREEN_WIDTH//2, y=130)
         self.screen.blit(name_text, name_rect)
-        
+
         amount_text = self.font_large.render("$1,800,000,000", True, WHITE)
-        amount_rect = amount_text.get_rect(centerx=SCREEN_WIDTH//2, y=300)
+        amount_rect = amount_text.get_rect(centerx=SCREEN_WIDTH//2, y=200)
         self.screen.blit(amount_text, amount_rect)
+
+        # Winner stats
+        rolls = state.get("last_jackpot_rolls", 0)
+        time_played = state.get("jackpot_winner_time", "")
+        spent = state.get("jackpot_winner_spent", 0)
+
+        # Stats display - centered below the jackpot amount
+        stats_y = 290
+        rolls_text = self.font_medium.render(f"Rolls: {rolls:,}", True, BLACK)
+        rolls_rect = rolls_text.get_rect(centerx=SCREEN_WIDTH//2, y=stats_y)
+        self.screen.blit(rolls_text, rolls_rect)
+
+        time_text = self.font_medium.render(f"Time: {time_played}", True, BLACK)
+        time_rect = time_text.get_rect(centerx=SCREEN_WIDTH//2, y=stats_y + 40)
+        self.screen.blit(time_text, time_rect)
+
+        spent_text = self.font_medium.render(f"Spent: ${spent:,}", True, BLACK)
+        spent_rect = spent_text.get_rect(centerx=SCREEN_WIDTH//2, y=stats_y + 80)
+        self.screen.blit(spent_text, spent_rect)
     
     def draw_qr_overlay(self, state: dict):
         """Draw a semi-transparent QR overlay with drawing counter still visible."""
@@ -416,7 +437,7 @@ class Display:
 
         # Decide which screen to show
         if state.get("jackpot_hit"):
-            self.draw_jackpot_celebration(state.get("jackpot_winner", "Someone"))
+            self.draw_jackpot_celebration(state)
         elif state.get("player_count", 0) > 0:
             # Show game screen if there are players (running or paused)
             self.draw_game_screen(state)
